@@ -1,0 +1,22 @@
+{
+    "name": "farzinft/lara-rpc-rmq",
+    "autoload": {
+        "psr-4": {
+            "Fthi\\LaraRpcRmq\\": "src/"
+        }
+    },
+    "require": {
+        "enqueue/amqp-ext": "^0.10.9",
+        "enqueue/fs": "^0.10.9",
+        "enqueue/laravel-queue": "^0.10.5",
+        "illuminate/contracts": "^7.0|^8.0|^9.0",
+        "illuminate/support": "^7.0|^8.0|^9.0"
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Fthi\\LaraRpcRmq\\LaraRpcServiceProvider"
+            ]
+        }
+    }
+}
