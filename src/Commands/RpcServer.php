@@ -2,9 +2,11 @@
 
 namespace Fthi\LaraRpcRmq\Commands;
 
+use Enqueue\Consumption\ChainExtension;
 use Enqueue\Consumption\Result;
 use Fthi\LaraRpcRmq\BoundedQueue;
 use Fthi\LaraRpcRmq\CheckFailsExtension;
+use Fthi\LaraRpcRmq\CommandException;
 use Illuminate\Console\Command;
 use Interop\Queue\Context;
 use Interop\Queue\Message;
@@ -33,7 +35,7 @@ class RpcServer extends Command
 
         $this->rmqConfig = config('rpc-client');
 
-        $this->patterns = $this->rmqConfig['patterns'];
+        $this->patterns = $this->rmqConfig['rpc']['patterns'];
 
         $this->client = app('rmqClient');
 
@@ -50,7 +52,8 @@ class RpcServer extends Command
 
         } catch (\Exception $e) {
 
-            $this->error('Consumer Error: ' . $e->getMessage());
+            $this->error('Consumer Error: ' . $e->getMessage() . ' | ' . $e->getFile() . ' | ' . $e->getLine());
+
             exit(1);
         }
     }
@@ -60,6 +63,7 @@ class RpcServer extends Command
     {
 
         foreach ($this->patterns as $pattern => $mapController) {
+
             $this->client->bindCommand($pattern, function (Message $message, Context $context) use ($mapController) {
 
                 try {
@@ -81,17 +85,25 @@ class RpcServer extends Command
                     ];
 
                     $this->error('Error on process: ' . $e->getMessage());
+
+                    $commandException = new CommandException($context, $message);
+
+                    $commandException->onCommandException();
                 }
 
                 unset($controller);
 
                 return Result::reply($this->context->createMessage(json_encode($this->result, JSON_UNESCAPED_UNICODE)));
 
-            }, $this->rmqConfig['client']['client']['router_queue']);
+            }, $this->rmqConfig['rpc']['rpc_process_name']);
         }
 
         $this->info('Rpc Started');
 
-        $this->client->consume();
+        $exceptionProcessor = $this->rmqConfig['rpc']['process_exception'];
+
+        $this->client->consume(new ChainExtension([
+            new $exceptionProcessor
+        ]), $this->rmqConfig['rpc']['rpc_queue']);
     }
 }

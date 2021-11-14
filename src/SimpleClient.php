@@ -73,6 +73,8 @@ final class SimpleClient
      */
     private $logger;
 
+    private $rpcConfig;
+
     /**
      * The config could be a transport DSN (string) or an array, here's an example of a few DSNs:.
      *
@@ -122,7 +124,7 @@ final class SimpleClient
      *
      * @param string|array $config
      */
-    public function __construct($config, LoggerInterface $logger = null)
+    public function __construct($config, LoggerInterface $logger = null, $rpcConfig)
     {
         if (is_string($config)) {
             $config = [
@@ -132,6 +134,8 @@ final class SimpleClient
         }
 
         $this->logger = $logger ?: new NullLogger();
+
+        $this->rpcConfig = $rpcConfig;
 
         $this->build(['enqueue' => $config]);
     }
@@ -178,7 +182,12 @@ final class SimpleClient
      */
     public function sendCommand(string $command, $message, string $processorName = null, bool $needReply = false): ?Promise
     {
-        $this->driver->getRouteCollection()->add(new Route($command, Route::COMMAND, $processorName));
+
+        $route = new Route($command, Route::COMMAND, $processorName, [
+            'queue' => $this->rpcConfig['rpc_queue']
+        ]);
+
+        $this->driver->getRouteCollection()->add($route);
 
         return $this->producer->sendCommand($command, $message, $needReply);
     }
@@ -191,14 +200,21 @@ final class SimpleClient
         $this->producer->sendEvent($topic, $message);
     }
 
-    public function consume(ExtensionInterface $runtimeExtension = null): void
+    public function consume(ExtensionInterface $runtimeExtension = null, $rpcQueue = null): void
     {
         $this->setupBroker();
 
         $boundQueues = [];
 
-        $routerQueue = $this->getDriver()->createQueue($this->getDriver()->getConfig()->getRouterQueue());
+
+        $routerQueue = $this->getDriver()->createQueue($rpcQueue ?: $this->getDriver()->getConfig()->getRouterQueue());
+
+        if($rpcQueue) {
+            $this->getDriver()->getContext()->declareQueue($routerQueue);
+        }
+
         $this->queueConsumer->bind($routerQueue, $this->delegateProcessor);
+
         $boundQueues[$routerQueue->getQueueName()] = true;
 
         foreach ($this->driver->getRouteCollection()->all() as $route) {
@@ -214,6 +230,7 @@ final class SimpleClient
 
         $this->queueConsumer->consume($runtimeExtension);
     }
+
 
     public function getQueueConsumer(): QueueConsumerInterface
     {

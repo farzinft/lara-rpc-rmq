@@ -23,7 +23,7 @@ class LaraRpcServiceProvider extends \Illuminate\Support\ServiceProvider
 
         $this->app->singleton('rmqClient', function ($app) {
             $logChannel = !empty($app['log']->channel('rpc')) ? $app['log']->channel('rpc') : $app['log']->channel('daily');
-            return new SimpleClient($this->app['config']['rpc-client']['client'], $logChannel);
+            return new SimpleClient($this->app['config']['rpc-client']['client'], $logChannel, $this->app['config']['rpc-client']['rpc']);
         });
     }
 
