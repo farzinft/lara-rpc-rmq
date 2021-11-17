@@ -62,41 +62,43 @@ class RpcServer extends Command
     private function patternConsume()
     {
 
-        foreach ($this->patterns as $pattern => $mapController) {
+        $this->client->bindRpc($this->rmqConfig['rpc']['rpc_process_name'], function (Message $message, Context $context) {
 
-            $this->client->bindCommand($pattern, function (Message $message, Context $context) use ($mapController) {
+            try {
 
-                try {
+                unset($this->result);
 
-                    unset($this->result);
+                $command = $message->getProperties()['enqueue.command'];
 
-                    $this->info('Process message: ' . $message->getBody());
+                $pattern = $this->patterns[$command];
 
-                    $msgBody = json_decode($message->getBody(), true);
+                $this->info('Process message: ' . $message->getBody() . ' pattern: ' . json_encode($pattern));
 
-                    $controller = new $mapController['controller']();
+                $msgBody = json_decode($message->getBody(), true);
 
-                    $this->result = $controller->{$mapController['method']}($msgBody);
+                $controller = new $pattern['controller']();
 
-                } catch (\Exception $e) {
+                $this->result = $controller->{$pattern['method']}($msgBody);
 
-                    $this->result = [
-                       'exception' => $e->getMessage()
-                    ];
 
-                    $this->error('Error on process: ' . $e->getMessage());
+            } catch (\Exception $e) {
 
-                    $commandException = new CommandException($context, $message);
+                $this->result = [
+                    'exception' => $e->getMessage()
+                ];
 
-                    $commandException->onCommandException();
-                }
+                $this->error('Error on process: ' . $e->getMessage());
 
-                unset($controller);
+                $commandException = new CommandException($context, $message);
 
-                return Result::reply($this->context->createMessage(json_encode($this->result, JSON_UNESCAPED_UNICODE)));
+                $commandException->onCommandException();
+            }
 
-            }, $this->rmqConfig['rpc']['rpc_process_name']);
-        }
+            unset($controller);
+
+            return Result::reply($this->context->createMessage(json_encode($this->result, JSON_UNESCAPED_UNICODE)));
+
+        });
 
         $this->info('Rpc Started');
 

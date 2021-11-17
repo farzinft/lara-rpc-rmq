@@ -177,6 +177,21 @@ final class SimpleClient
         $this->processorRegistry->add($processorName, $processor);
     }
 
+    public function bindRpc(string $processorName, callable $processor)
+    {
+        if (is_callable($processor)) {
+            $processor = new CallbackProcessor($processor);
+        }
+
+        if (false == $processor instanceof Processor) {
+            throw new \LogicException('The processor must be either callable or instance of Processor');
+        }
+
+        $this->driver->getRouteCollection()->add(new Route('', Route::COMMAND, $processorName));
+
+        $this->processorRegistry->add($processorName, $processor);
+    }
+
     /**
      * @param string|array|\JsonSerializable|Message $message
      */
@@ -188,6 +203,7 @@ final class SimpleClient
         ]);
 
         $this->driver->getRouteCollection()->add($route);
+
 
         return $this->producer->sendCommand($command, $message, $needReply);
     }
